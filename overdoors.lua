@@ -106,4 +106,3 @@ task.wait(3)
 DoorsNotify("CHU be te liet script")
 GiveCrucifix()
 print("[THE OVERDOORS] Loaded | Delta Safe")
-		
