@@ -1,194 +1,188 @@
---------------------------------------------------
--- OVERDOORS MODE (FINAL / DELTA SAFE / HARDCORE V4)
---------------------------------------------------
+--==================================================
+-- THE OVERDOORS (FINAL)
+-- Intro + Hardcore V4 + Crucifix + Seek Music
+-- DELTA SAFE | ONE FILE | NO CONFLICT
+--==================================================
 
+-- SERVICES
 local Players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
-local Debris = game:GetService("Debris")
 local StarterGui = game:GetService("StarterGui")
-local P = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
 
---------------------------------------------------
--- NOTIFICATION (2 DÒNG - SAFE)
---------------------------------------------------
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+--==================================================
+-- INTRO : THE OVERDOORS (DOORS STYLE - CENTER)
+--==================================================
 task.spawn(function()
-	task.wait(0.4)
-	pcall(function()
-		StarterGui:SetCore("SendNotification",{
-			Title = "THE OVERDOORS",
-			Text = "By CHUBE TE LIET",
-			Duration = 4
-		})
-	end)
+	task.wait(0.5)
 
-	task.wait(4.3)
 	pcall(function()
-		StarterGui:SetCore("SendNotification",{
-			Title = "Remake",
-			Text = "the one look so ugly",
-			Duration = 4
-		})
+		local gui = Instance.new("ScreenGui")
+		gui.IgnoreGuiInset = true
+		gui.ResetOnSpawn = false
+		gui.Parent = PlayerGui
+
+		local text = Instance.new("TextLabel")
+		text.Parent = gui
+		text.Size = UDim2.new(1,0,1,0)
+		text.BackgroundTransparency = 1
+		text.Text = "THE OVERDOORS"
+		text.Font = Enum.Font.GothamBlack -- DOORS FONT
+		text.TextScaled = true
+		text.TextColor3 = Color3.fromRGB(255,255,255)
+		text.TextTransparency = 1
+		text.TextStrokeTransparency = 0.6
+		text.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+
+		-- Fade In
+		TweenService:Create(
+			text,
+			TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{TextTransparency = 0}
+		):Play()
+
+		task.wait(2)
+
+		-- Fade Out
+		TweenService:Create(
+			text,
+			TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{TextTransparency = 1}
+		):Play()
+
+		task.wait(1.2)
+		gui:Destroy()
 	end)
 end)
 
---------------------------------------------------
--- INTRO : THE OVERDOORS (RED TEXT)
---------------------------------------------------
-task.spawn(function()
-	task.wait(0.8)
+--==================================================
+-- DOORS STYLE BOTTOM NOTIFY
+--==================================================
+local function DoorsNotify(text)
+	pcall(function()
+		local gui = Instance.new("ScreenGui")
+		gui.ResetOnSpawn = false
+		gui.Parent = PlayerGui
 
-	local gui = Instance.new("ScreenGui")
-	gui.IgnoreGuiInset = true
-	gui.ResetOnSpawn = false
-	gui.Parent = P:WaitForChild("PlayerGui")
+		local frame = Instance.new("Frame", gui)
+		frame.Size = UDim2.new(1,0,0,60)
+		frame.Position = UDim2.new(0,0,1,0)
+		frame.BackgroundColor3 = Color3.fromRGB(10,10,10)
+		frame.BackgroundTransparency = 0.15
+		frame.BorderSizePixel = 0
 
-	local txt = Instance.new("TextLabel")
-	txt.Parent = gui
-	txt.Size = UDim2.new(1,0,1,0)
-	txt.BackgroundTransparency = 1
-	txt.Text = "THE OVERDOORS"
-	txt.Font = Enum.Font.GothamBlack
-	txt.TextScaled = true
-	txt.TextColor3 = Color3.fromRGB(255,0,0)
-	txt.TextTransparency = 1
-	txt.TextStrokeTransparency = 0.2
+		local txt = Instance.new("TextLabel", frame)
+		txt.Size = UDim2.new(1,-30,1,0)
+		txt.Position = UDim2.new(0,15,0,0)
+		txt.BackgroundTransparency = 1
+		txt.Text = text
+		txt.TextColor3 = Color3.fromRGB(255,255,255)
+		txt.Font = Enum.Font.GothamBold
+		txt.TextScaled = true
+		txt.TextWrapped = true
 
-	for i=1,15 do
-		txt.TextTransparency -= 0.07
-		task.wait(0.03)
-	end
+		TweenService:Create(frame,
+			TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{Position = UDim2.new(0,0,1,-60)}
+		):Play()
 
-	task.wait(2)
+		task.wait(4)
 
-	for i=1,15 do
-		txt.TextTransparency += 0.07
-		task.wait(0.03)
-	end
+		TweenService:Create(frame,
+			TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+			{Position = UDim2.new(0,0,1,0)}
+		):Play()
 
-	gui:Destroy()
-end)
+		Debris:AddItem(gui,6)
+	end)
+end
 
---------------------------------------------------
+--==================================================
+-- GIVE CRUCIFIX
+--==================================================
+local function GiveCrucifix()
+	pcall(function()
+		if Player.Backpack:FindFirstChild("Crucifix") then return end
+
+		local tool = Instance.new("Tool")
+		tool.Name = "Crucifix"
+		tool.RequiresHandle = true
+		tool.CanBeDropped = false
+
+		local handle = Instance.new("Part")
+		handle.Name = "Handle"
+		handle.Size = Vector3.new(1,3,0.3)
+		handle.Material = Enum.Material.Wood
+		handle.Color = Color3.fromRGB(90,70,50)
+		handle.Parent = tool
+
+		local mesh = Instance.new("SpecialMesh", handle)
+		mesh.MeshType = Enum.MeshType.Brick
+		mesh.Scale = Vector3.new(0.4,1,0.4)
+
+		tool.Parent = Player.Backpack
+	end)
+end
+
+--==================================================
 -- LOAD HARDCORE V4 (SAFE)
---------------------------------------------------
+--==================================================
 task.spawn(function()
 	task.wait(2)
-	local ok,src = pcall(function()
-		return game:HttpGet("https://raw.githubusercontent.com/localplayerr/Doors-stuff/main/Hardcore%20v4%20recreate/main%20code")
+
+	local ok, src = pcall(function()
+		return game:HttpGet(
+			"https://raw.githubusercontent.com/localplayerr/Doors-stuff/main/Hardcore%20v4%20recreate/main%20code"
+		)
 	end)
-	if ok and src then
-		pcall(loadstring(src))
+
+	if ok and src and #src > 50 then
+		local f = loadstring(src)
+		if f then
+			pcall(f)
+		end
 	end
 end)
 
---------------------------------------------------
+--==================================================
 -- SEEK MUSIC : HERE I COME
---------------------------------------------------
+--==================================================
 local SEEK_ID = "rbxassetid://78534559289195"
 
-task.spawn(function()
-	while task.wait(0.7) do
-		for _,s in ipairs(workspace:GetDescendants()) do
-			if s:IsA("Sound") then
-				local n = s.Name:lower()
-				if n:find("seek") or n:find("chase") then
-					if s.SoundId ~= SEEK_ID then
-						s.SoundId = SEEK_ID
-						s.Volume = 7
-						s.Looped = true
-						pcall(function() s:Play() end)
-					end
+local function HookSeek(sound)
+	if not sound:IsA("Sound") then return end
+	local n = sound.Name:lower()
+	if n:find("seek") or n:find("chase") then
+		task.delay(0.1,function()
+			pcall(function()
+				sound.SoundId = SEEK_ID
+				sound.Volume = 7
+				sound.Looped = true
+				if not sound.IsPlaying then
+					sound:Play()
 				end
-			end
-		end
-	end
-end)
-
---------------------------------------------------
--- ROOM DATA
---------------------------------------------------
-local LatestRoom = RS:WaitForChild("GameData"):WaitForChild("LatestRoom")
-
---------------------------------------------------
--- CRUCIFIX GLOW IN CLOSET
---------------------------------------------------
-local function glowCloset(roomNumber)
-	local rooms = workspace:FindFirstChild("CurrentRooms")
-	if not rooms then return end
-	local room = rooms:FindFirstChild(tostring(roomNumber))
-	if not room then return end
-
-	for _,closet in ipairs(room:GetDescendants()) do
-		if closet:IsA("Model") and closet.Name:lower():find("closet") then
-			local part = closet:FindFirstChildWhichIsA("BasePart", true)
-			if part and not part:FindFirstChild("OverdoorsGlow") then
-				local g = Instance.new("PointLight", part)
-				g.Name = "OverdoorsGlow"
-				g.Color = Color3.fromRGB(0,255,200)
-				g.Range = 16
-				g.Brightness = 6
-			end
-			break
-		end
+			end)
+		end)
 	end
 end
 
---------------------------------------------------
--- CRUCIFIX KILL (HARDCORE ENTITY)
---------------------------------------------------
-local function hookCrucifix(tool)
-	if not tool:IsA("Tool") then return end
-	if tool.Name ~= "Crucifix" then return end
-	if tool:FindFirstChild("OD") then return end
-	Instance.new("BoolValue", tool).Name = "OD"
-
-	tool.Activated:Connect(function()
-		for _,m in ipairs(workspace:GetDescendants()) do
-			if m:IsA("Model") then
-				local n = m.Name:lower()
-				if n:find("rush") or n:find("seek") or n:find("a60")
-				or n:find("a90") or n:find("blitz") or n:find("depth") then
-					pcall(function() m:Destroy() end)
-				end
-			end
-		end
-	end)
+for _,v in ipairs(workspace:GetDescendants()) do
+	HookSeek(v)
 end
+workspace.DescendantAdded:Connect(HookSeek)
 
-P.Backpack.ChildAdded:Connect(hookCrucifix)
-P.CharacterAdded:Connect(function(c)
-	c.ChildAdded:Connect(hookCrucifix)
-end)
-
---------------------------------------------------
--- ROOM EVENT
---------------------------------------------------
-LatestRoom:GetPropertyChangedSignal("Value"):Connect(function()
-	if LatestRoom.Value > 10 then
-		glowCloset(LatestRoom.Value)
-	end
-end)
-
---------------------------------------------------
--- RANDOM SCARY SCREAM (67%)
---------------------------------------------------
+--==================================================
+-- START
+--==================================================
 task.spawn(function()
-	while task.wait(math.random(25,45)) do
-		if math.random(1,100) <= 67 then
-			local s = Instance.new("Sound")
-			s.SoundId = "rbxassetid://129365607112965"
-			s.Volume = 7
-
-			local char = P.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-			s.Parent = root or workspace
-
-			s:Play()
-			Debris:AddItem(s,6)
-		end
-	end
+	task.wait(3)
+	DoorsNotify("CHU be te liet script")
+	GiveCrucifix()
 end)
 
---------------------------------------------------
--- END : OVERDOORS
---------------------------------------------------
+print("[THE OVERDOORS] Loaded | Delta Safe")
+--==================================================
