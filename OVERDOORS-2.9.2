@@ -1,0 +1,556 @@
+--[[
+OVERDOORS — Full single-file (NO room2 intro music)
+Features:
+- Force-spawn 2 copies of Guiding flashlight on run (duplicate behavior)
+- Caption on load + room1 caption
+- Room2 caption "loaded successfully" (music removed)
+- Random entity scheduler
+- Guiding Light room45
+- SEEK music handler integrated
+- Safe, guarded, executor-friendly
+by chu be te liet (modified)
+]]
+
+if getgenv().OVERDOORS_FULL_LOADED then
+    print("[OVERDOORS] already loaded")
+    return
+end
+getgenv().OVERDOORS_FULL_LOADED = true
+
+-- Services
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local Workspace = game:GetService("Workspace")
+local ContentProvider = game:GetService("ContentProvider")
+local SoundService = game:GetService("SoundService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Safe helper
+local function safe(f, ...) local ok, a = pcall(f, ...) if not ok then return false, a end return true, a end
+local function log(...) print("[OVERDOORS]", ...) end
+
+-- SAFE REMOTE LOADER (pcall + loadstring)
+local function safeLoadRemote(url)
+    if not url or url == "" then return false, "no url" end
+    local ok, body = pcall(function() return game:HttpGet(url, true) end)
+    if not ok or not body or #body < 8 then return false, "fetch failed" end
+    -- light sanitize (avoid huge numbers/ids causing issues)
+    body = body:gsub("(%d%d%d%d%d+)", "1")
+    local fn, err = loadstring(body)
+    if not fn then return false, ("loadstring err: %s"):format(tostring(err)) end
+    local suc, rerr = pcall(fn)
+    if not suc then return false, ("runtime err: %s"):format(tostring(rerr)) end
+    return true
+end
+
+-- Wait for GameData.LatestRoom in background
+task.spawn(function()
+    while not (RS:FindFirstChild("GameData") and RS.GameData:FindFirstChild("LatestRoom")) do
+        task.wait(0.4)
+    end
+end)
+
+--------------------------------------------------
+-- CAPTION (MainGame.caption) - initial & room1
+--------------------------------------------------
+task.spawn(function()
+    local tries = 0
+    repeat
+        task.wait(0.5)
+        tries = tries + 1
+        if tries > 30 then break end
+    until (LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("MainUI")
+        and LocalPlayer.PlayerGui.MainUI:FindFirstChild("Initiator") and LocalPlayer.PlayerGui.MainUI.Initiator:FindFirstChild("Main_Game"))
+
+    local MainGame
+    if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("MainUI")
+        and LocalPlayer.PlayerGui.MainUI:FindFirstChild("Initiator") and LocalPlayer.PlayerGui.MainUI.Initiator:FindFirstChild("Main_Game") then
+        local ok, mod = pcall(function() return require(LocalPlayer.PlayerGui.MainUI.Initiator.Main_Game) end)
+        if ok and mod and type(mod.caption) == "function" then MainGame = mod end
+    end
+
+    if MainGame then
+        pcall(function() MainGame.caption("OVERDOORS BY CHÚ BÉ TÊ LIỆT,", true) end)
+    else
+        task.spawn(function()
+            task.wait(0.4)
+            if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then
+                safe(function()
+                    local g = Instance.new("ScreenGui", LocalPlayer.PlayerGui); g.ResetOnSpawn=false; g.Name="OD_CAP_FALLBACK"
+                    local l = Instance.new("TextLabel", g)
+                    l.Size = UDim2.fromScale(1,0.08); l.Position = UDim2.fromScale(0,0.45)
+                    l.BackgroundTransparency = 1; l.TextScaled=true; l.Font=Enum.Font.GothamBold
+                    l.Text = "OVERDOORS BY CHÚ BÉ TÊ LIỆT,"; Debris:AddItem(g,6)
+                end)
+            end
+        end)
+    end
+
+    -- room1 caption (kept)
+    if workspace:FindFirstChild("CurrentRooms") then
+        workspace.CurrentRooms.ChildAdded:Connect(function(room)
+            local rn = tonumber(room.Name)
+            if rn == 1 then
+                task.wait(0.2)
+                if MainGame then
+                    pcall(function() MainGame.caption("good luck 👍🗿", true) end)
+                else
+                    if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then
+                        pcall(function()
+                            local g = Instance.new("ScreenGui", LocalPlayer.PlayerGui); g.ResetOnSpawn=false; g.Name="OD_CAP_ROOM1"
+                            local l = Instance.new("TextLabel", g)
+                            l.Size = UDim2.fromScale(1,0.06); l.Position = UDim2.fromScale(0,0.88)
+                            l.BackgroundTransparency = 1; l.TextScaled=true; l.Font=Enum.Font.GothamBold
+                            l.TextColor3 = Color3.fromRGB(170,255,200); l.Text = "good luck 👍🗿"
+                            Debris:AddItem(g,6)
+                        end)
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+--------------------------------------------------
+-- INTRO IMAGE
+--------------------------------------------------
+task.spawn(function()
+    task.wait(0.6)
+    if not LocalPlayer or not LocalPlayer:FindFirstChild("PlayerGui") then return end
+    local gui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+    gui.Name = "OD_INTRO_IMAGE"
+    gui.ResetOnSpawn = false
+    local img = Instance.new("ImageLabel", gui)
+    img.Size = UDim2.fromScale(1,1); img.BackgroundTransparency = 1; img.ScaleType = Enum.ScaleType.Fit
+    img.Image = "rbxassetid://93664194964832"
+    img.ImageTransparency = 1
+    for i=1,12 do img.ImageTransparency = img.ImageTransparency - 0.08; task.wait(0.03) end
+    task.wait(1.6)
+    for i=1,12 do img.ImageTransparency = img.ImageTransparency + 0.08; task.wait(0.03) end
+    gui:Destroy()
+end)
+
+--------------------------------------------------
+-- PLAYER STATS (safe)
+--------------------------------------------------
+task.spawn(function()
+    while task.wait(1) do
+        safe(function()
+            local h = LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if h then
+                h.WalkSpeed = 20
+                h.JumpPower = 38
+            end
+        end)
+    end
+end)
+
+--------------------------------------------------
+-- ENTITIES: list
+--------------------------------------------------
+local ENTITY_URLS = {
+    "https://raw.githubusercontent.com/Junbbinopro/Depth-entity/refs/heads/main/Depth",
+    "https://raw.githubusercontent.com/Junbbinopro/Guardian-entity/refs/heads/main/Guardian",
+    "https://raw.githubusercontent.com/Junbbinopro/Wh1t3/refs/heads/main/Entity",
+    "https://raw.githubusercontent.com/trungdepth-dot/Entity-greance/refs/heads/main/Greance-20",
+    "https://raw.githubusercontent.com/binhlforsaken156-sys/Hauntstep-entity/refs/heads/main/OVERDOORS%20HAUNTSTEP%20ENTYTY.lua",
+    "https://raw.githubusercontent.com/Zeca130/doors-my-version-nightmareMode./refs/heads/main/Entity6",
+    "https://raw.githubusercontent.com/Idk-lol2/a-60aa/refs/heads/main/---======%20a-60%20agresiv%20spawner%20======---.txt",
+    "https://github.com/PABMAXICHAC/doors-monsters-scripts/raw/main/blinkcrux"
+}
+
+--------------------------------------------------
+-- RANDOM ROOM SCHEDULER (no %)
+--------------------------------------------------
+task.spawn(function()
+    while not (RS:FindFirstChild("GameData") and RS.GameData:FindFirstChild("LatestRoom")) do task.wait(0.4) end
+    local LatestRoom = RS.GameData:FindFirstChild("LatestRoom")
+    local lastRoom = LatestRoom.Value or 0
+    local function scheduleNext(fromRoom) return (fromRoom or lastRoom) + math.random(3,7) end
+    getgenv().OVERDOORS_nextEntityRoom = getgenv().OVERDOORS_nextEntityRoom or scheduleNext(lastRoom)
+    local nextSpawn = getgenv().OVERDOORS_nextEntityRoom
+    local busy = false
+
+    LatestRoom.Changed:Connect(function()
+        local cur = LatestRoom.Value or 0
+        if cur <= lastRoom then lastRoom = cur; return end
+        lastRoom = cur
+        if cur == nextSpawn then
+            if not busy then
+                busy = true
+                task.spawn(function()
+                    local found = false
+                    for _,m in ipairs(Workspace:GetChildren()) do
+                        if m:IsA("Model") then
+                            local n = tostring(m.Name):lower()
+                            if n:find("repentance") or n:find("seek") or n:find("ambush") or n:find("rush") then found = true; break end
+                        end
+                    end
+                    if not found then
+                        local url = ENTITY_URLS[math.random(#ENTITY_URLS)]
+                        local ok, err = safeLoadRemote(url)
+                        if ok then log("spawned entity from", url) else log("spawn failed:", err) end
+                    else
+                        log("entity present, skip spawn")
+                    end
+                    task.wait(2)
+                    busy = false
+                end)
+            end
+            nextSpawn = scheduleNext(cur)
+            getgenv().OVERDOORS_nextEntityRoom = nextSpawn
+            log("next entity scheduled at room", nextSpawn)
+        end
+    end)
+end)
+
+--------------------------------------------------
+-- GIVE GUIDING FLASHLIGHT: FORCE DUPLICATE (spawn exactly 2 copies)
+--------------------------------------------------
+do
+    local FLASH_TOOL_ASSET = "rbxassetid://79481104952584" -- asset client-side tool
+    local FLASH_SCRIPT_URL = "https://raw.githubusercontent.com/binhlforsaken156-sys/Guiding-flash-light/refs/heads/main/Guiding-flash-light.lua"
+    local POLL_TIME_AFTER_LOAD = 6
+    local TRY_DELAY = 0.06
+
+    -- guards: avoid infinite repeated spawns; allow at most one run that ensures 2 copies
+    if getgenv().GUIDING_FLASH_FORCED_DUPED then
+        log("Guiding flash forced-dupe already ran")
+    else
+        getgenv().GUIDING_FLASH_FORCED_DUPED = true
+
+        -- helper: match tool
+        local function isFlashTool(inst)
+            if not inst or not inst:IsA("Tool") then return false end
+            local n = tostring(inst.Name or ""):lower()
+            local pats = {"flash","guid","purple","gummy","torch","light"}
+            for _,p in ipairs(pats) do if n:find(p) then return true end end
+            return false
+        end
+
+        local function getFlashTools()
+            local out = {}
+            if LocalPlayer then
+                if LocalPlayer:FindFirstChild("Backpack") then
+                    for _,v in ipairs(LocalPlayer.Backpack:GetChildren()) do if isFlashTool(v) then table.insert(out, v) end end
+                end
+                if LocalPlayer.Character then
+                    for _,v in ipairs(LocalPlayer.Character:GetChildren()) do if isFlashTool(v) then table.insert(out, v) end end
+                end
+            end
+            return out
+        end
+
+        local function spawnOneToolFromAsset()
+            if not LocalPlayer then return false, "no_localplayer" end
+            local ok, inst = pcall(function() return game:GetObjects(FLASH_TOOL_ASSET)[1] end)
+            if not ok or not inst then return false, "getobjects_failed" end
+            -- parent into Backpack if possible
+            local success = pcall(function()
+                local bp = LocalPlayer:FindFirstChild("Backpack") or LocalPlayer
+                inst.Parent = bp
+            end)
+            task.wait(TRY_DELAY)
+            return true, inst
+        end
+
+        -- Try to ensure exactly two copies exist in Backpack/Character
+        local function ensureTwo()
+            if not LocalPlayer then return false, "no_localplayer" end
+            -- count existing
+            local tools = getFlashTools()
+            if #tools >= 2 then
+                log("Already have", #tools, "flash tools; skipping spawn")
+                return true, "already_two_or_more"
+            end
+
+            -- spawn first if none
+            if #tools == 0 then
+                local ok, instOrErr = spawnOneToolFromAsset()
+                if not ok then
+                    log("spawnOne failed:", instOrErr)
+                else
+                    log("spawned tool (1):", (instOrErr and instOrErr.Name) or "<unknown>")
+                end
+                task.wait(0.12)
+            end
+
+            -- re-evaluate
+            tools = getFlashTools()
+            if #tools >= 2 then return true, "done" end
+
+            -- spawn second: try cloning existing tool if available
+            if #tools == 1 then
+                local existing = tools[1]
+                local ok, clone = pcall(function() return existing:Clone() end)
+                if ok and clone then
+                    pcall(function()
+                        clone.Parent = LocalPlayer:FindFirstChild("Backpack") or LocalPlayer
+                    end)
+                    task.wait(0.08)
+                    log("cloned second tool from existing one")
+                else
+                    -- fallback: try loading asset again
+                    local ok2, inst2 = spawnOneToolFromAsset()
+                    if ok2 then log("spawned second tool via asset") else log("failed spawn second:", inst2) end
+                end
+            else
+                -- #tools == 0 after earlier attempts -> try twice via asset
+                local ok1, i1 = spawnOneToolFromAsset()
+                task.wait(0.08)
+                local ok2, i2 = spawnOneToolFromAsset()
+                if ok1 or ok2 then log("attempted to spawn two tools via asset") end
+            end
+
+            -- final check/dump state
+            task.wait(0.12)
+            tools = getFlashTools()
+            log("final flash tool count:", #tools)
+            return (#tools >= 1), (#tools >= 2) and "two_ok" or ("only_" .. tostring(#tools))
+        end
+
+        -- load guiding script best-effort (attach behavior)
+        local function tryLoadGuidingScript()
+            if not FLASH_SCRIPT_URL then return false end
+            local ok, err = pcall(function() return loadstring(game:HttpGet(FLASH_SCRIPT_URL, true))() end)
+            if ok then
+                log("Guiding script loaded")
+                return true
+            else
+                log("Guiding script load failed:", err)
+                return false
+            end
+        end
+
+        -- Run ensureTwo with a few quick retries to be robust
+        task.spawn(function()
+            for i = 1, 3 do
+                local ok, why = ensureTwo()
+                log("GUIDE DUPER attempt", i, ok, why)
+                if ok and (why == "two_ok" or why == "already_two_or_more") then break end
+                task.wait(0.25)
+            end
+            -- attempt to load guiding script regardless
+            pcall(tryLoadGuidingScript)
+        end)
+
+        -- also listen and avoid auto-destroy: keep duplicates if they appear
+        if LocalPlayer then
+            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+                task.defer(function()
+                    task.wait(0.08)
+                    -- nothing destructive here — we intentionally allow duplicates
+                    local tools = getFlashTools()
+                    log("Backpack.ChildAdded -> flash tool count now:", #tools)
+                end)
+            end)
+        end
+
+        -- helper to force-run from console if needed
+        function ForceForceDupeFlash()
+            local ok, why = ensureTwo()
+            print("[GUIDING_FLASH_DUPE] forced result:", ok, why)
+        end
+    end
+end
+
+--------------------------------------------------
+-- GUIDING LIGHT (ROOM 45 ONLY, ONE-TIME)
+--------------------------------------------------
+task.spawn(function()
+    while not (RS:FindFirstChild("GameData") and RS.GameData:FindFirstChild("LatestRoom")) do task.wait(0.5) end
+    local LatestRoom = RS.GameData.LatestRoom
+    local TRIGGER_ROOM = 45
+    local triggered = false
+
+    LatestRoom.Changed:Connect(function()
+        if triggered then return end
+        if LatestRoom.Value == TRIGGER_ROOM then
+            triggered = true
+            task.spawn(function()
+                if not LocalPlayer or not LocalPlayer:FindFirstChild("PlayerGui") then return end
+                local g = Instance.new("ScreenGui", LocalPlayer.PlayerGui); g.Name="GUIDING_ROOM_45"; g.ResetOnSpawn=false
+                local t = Instance.new("TextLabel", g)
+                t.Size = UDim2.fromScale(1,0.16); t.Position = UDim2.fromScale(0,0.42)
+                t.BackgroundTransparency = 1; t.TextScaled=true; t.Font = Enum.Font.GothamBold
+                t.TextColor3 = Color3.fromRGB(0,210,255); t.TextStrokeTransparency = 0.6
+                t.Text = "Do you really trust me?"
+                Debris:AddItem(g, 2)
+            end)
+            log("Guiding Light triggered at room 45")
+        end
+    end)
+end)
+
+--------------------------------------------------
+-- ROOM2: caption ONLY (intro music REMOVED)
+--------------------------------------------------
+do
+    task.spawn(function()
+        while not (RS:FindFirstChild("GameData") and RS.GameData:FindFirstChild("LatestRoom")) do task.wait(0.3) end
+        local LatestRoom = RS.GameData.LatestRoom
+
+        local MainGame = nil
+        local tries = 0
+        repeat
+            task.wait(0.4); tries = tries + 1
+            if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("MainUI")
+                and LocalPlayer.PlayerGui.MainUI:FindFirstChild("Initiator") and LocalPlayer.PlayerGui.MainUI.Initiator:FindFirstChild("Main_Game") then
+                local ok,mod = pcall(function() return require(LocalPlayer.PlayerGui.MainUI.Initiator.Main_Game) end)
+                if ok and mod and type(mod.caption) == "function" then MainGame = mod; break end
+            end
+        until tries >= 30
+
+        LatestRoom.Changed:Connect(function(v)
+            local rn = tonumber(v) or tonumber(LatestRoom.Value) or nil
+            if rn == 2 then
+                log("Entered room 2 -> caption (intro music removed)")
+                if MainGame then
+                    pcall(function() MainGame.caption("loaded successfully", true) end)
+                else
+                    if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then
+                        pcall(function()
+                            local g = Instance.new("ScreenGui", LocalPlayer.PlayerGui); g.ResetOnSpawn=false; g.Name="OD_LOADED_CAP"
+                            local lbl = Instance.new("TextLabel", g)
+                            lbl.Size = UDim2.fromScale(1,0.06); lbl.Position = UDim2.fromScale(0,0.88)
+                            lbl.BackgroundTransparency = 1; lbl.TextScaled=true; lbl.Font=Enum.Font.GothamBold
+                            lbl.TextColor3 = Color3.fromRGB(170,255,200); lbl.Text = "loaded successfully"
+                            Debris:AddItem(g,3)
+                        end)
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+--------------------------------------------------
+-- ===== SEEK MUSIC HANDLER (integrated) =====
+--------------------------------------------------
+do
+    local TARGET_SOUNDID = "rbxassetid://123602120579597"
+    local TARGET_VOLUME = 4
+    local CUTSCENE_WAIT = 0.9
+    local SYNC_OFFSET = 0.12
+    local FALLBACK_TIMEOUT = 8
+
+    local activeMusicForModel = {}
+
+    local function makeClientSound()
+        local cam = Workspace.CurrentCamera or Workspace
+        local s = Instance.new("Sound")
+        s.Name = "OD_SEEK_REPL"
+        s.SoundId = TARGET_SOUNDID
+        s.Volume = TARGET_VOLUME
+        s.Looped = false
+        s.Parent = cam
+        pcall(function() ContentProvider:PreloadAsync({s}) end)
+        return s
+    end
+
+    local function cleanupModelMusic(model)
+        local info = activeMusicForModel[model]
+        if not info then return end
+        if info.conn then pcall(function() info.conn:Disconnect() end) end
+        if info.sound then pcall(function() info.sound:Stop() end); pcall(function() info.sound:Destroy() end) end
+        activeMusicForModel[model] = nil
+        log("cleanup music for", model.Name or "<model>")
+    end
+
+    local function startReplacementForModel(model, startPos)
+        if activeMusicForModel[model] then return end
+        local s = makeClientSound()
+        activeMusicForModel[model] = { sound = s }
+        activeMusicForModel[model].conn = model.AncestryChanged:Connect(function(_,parent) if not parent then cleanupModelMusic(model) end end)
+        task.spawn(function() task.wait(0.03); pcall(function() if startPos and type(startPos)=="number" then s.TimePosition = math.max(0, startPos + SYNC_OFFSET) end; s:Play() end) end)
+        local conn; conn = s.Ended:Connect(function() if conn then conn:Disconnect() end; cleanupModelMusic(model) end)
+        log("started replacement for", model.Name or "<model>")
+    end
+
+    local function handleOriginalSeekSound(orig)
+        if not orig or not orig.Parent then return end
+        local top = orig
+        while top and not top:IsA("Model") and top.Parent do top = top.Parent end
+        if not top or not top:IsA("Model") then top = orig.Parent end
+        if activeMusicForModel[top] then return end
+        if orig:GetAttribute("OD_HANDLED") then return end
+        orig:SetAttribute("OD_HANDLED", true)
+
+        local function onEndedPlay() local pos = 0; pcall(function() pos = orig.TimePosition end); startReplacementForModel(top, pos) end
+
+        if orig.Playing then
+            log("original seek sound playing — waiting to stop to start replacement")
+            local ch; ch = orig:GetPropertyChangedSignal("Playing"):Connect(function()
+                local ok,val = pcall(function() return orig.Playing end)
+                if ok and not val then if ch then ch:Disconnect() end; onEndedPlay() end
+            end)
+            task.delay(FALLBACK_TIMEOUT, function() if activeMusicForModel[top] then return end; if ch then pcall(function() ch:Disconnect() end) end; log("fallback start replacement"); onEndedPlay() end)
+        else
+            log("listening for original seek to start then stop")
+            local cs; cs = orig:GetPropertyChangedSignal("Playing"):Connect(function()
+                local ok,val = pcall(function() return orig.Playing end)
+                if ok and val then if cs then cs:Disconnect() end
+                    local cs2; cs2 = orig:GetPropertyChangedSignal("Playing"):Connect(function()
+                        local ok2,val2 = pcall(function() return orig.Playing end)
+                        if ok2 and not val2 then if cs2 then cs2:Disconnect() end; onEndedPlay() end
+                    end)
+                    task.delay(FALLBACK_TIMEOUT, function() if activeMusicForModel[top] then return end; if cs2 then pcall(function() cs2:Disconnect() end) end; log("fallback after wait-start-stop"); onEndedPlay() end)
+                end
+            end)
+        end
+    end
+
+    local function isSeekishModel(m)
+        if not m or not m:IsA("Model") then return false end
+        local n = tostring(m.Name):lower()
+        if n:find("seek") or n:find("c00lkidd") or n:find("kiddo") or n:find("seekmoving") then return true end
+        return false
+    end
+
+    local function onSeekModel(model)
+        if activeMusicForModel[model] then return end
+        local orig = nil
+        for _,d in ipairs(model:GetDescendants()) do if d:IsA("Sound") and tostring(d.Name):lower():find("seek") then orig = d; break end end
+        if orig then
+            log("found original seek Sound in model:", model:GetFullName())
+            pcall(handleOriginalSeekSound, orig); return
+        end
+        log("no original sound found in model; waiting", CUTSCENE_WAIT, "s before fallback")
+        task.spawn(function()
+            task.wait(CUTSCENE_WAIT)
+            if not model.Parent then return end
+            local foundNow = nil
+            for _,d in ipairs(model:GetDescendants()) do if d:IsA("Sound") and tostring(d.Name):lower():find("seek") then foundNow = d; break end end
+            if foundNow then pcall(handleOriginalSeekSound, foundNow); return end
+            startReplacementForModel(model, 0)
+        end)
+    end
+
+    Workspace.DescendantAdded:Connect(function(desc)
+        task.defer(function()
+            if desc:IsA("Model") and isSeekishModel(desc) then onSeekModel(desc)
+            else
+                if desc:IsA("Sound") and tostring(desc.Name):lower():find("seek") then pcall(handleOriginalSeekSound, desc) end
+                for _,v in ipairs(desc:GetDescendants()) do
+                    if v:IsA("Model") and isSeekishModel(v) then onSeekModel(v); break
+                    elseif v:IsA("Sound") and tostring(v.Name):lower():find("seek") then pcall(handleOriginalSeekSound, v); break end
+                end
+            end
+        end)
+    end)
+
+    for _,v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") and isSeekishModel(v) then onSeekModel(v)
+        elseif v:IsA("Sound") and tostring(v.Name):lower():find("seek") then pcall(handleOriginalSeekSound, v) end
+    end
+
+    log("SEEK handler integrated. Replacement id:", TARGET_SOUNDID)
+end
+
+--------------------------------------------------
+-- READY
+--------------------------------------------------
+log("✅ OVERDOORS FULL LOADED — Guiding flash forced-duplicate attempted + SEEK music integrated (room2 intro music removed)")
